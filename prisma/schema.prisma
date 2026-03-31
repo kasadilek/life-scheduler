@@ -39,3 +39,54 @@ model Goal {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
+
+model LifeGoal {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  status      String    @default("drafting") // drafting | planned | active | completed
+  targetDate  DateTime?
+  planSummary String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  chatMessages ChatMessage[]
+  milestones   Milestone[]
+}
+
+model ChatMessage {
+  id         String   @id @default(cuid())
+  lifeGoalId String
+  lifeGoal   LifeGoal @relation(fields: [lifeGoalId], references: [id], onDelete: Cascade)
+  role       String   // "user" | "assistant"
+  content    String
+  createdAt  DateTime @default(now())
+}
+
+model Milestone {
+  id          String    @id @default(cuid())
+  lifeGoalId  String
+  lifeGoal    LifeGoal  @relation(fields: [lifeGoalId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  orderIndex  Int
+  targetDate  DateTime?
+  status      String    @default("pending") // pending | in_progress | completed
+  createdAt   DateTime  @default(now())
+
+  tasks Task[]
+}
+
+model Task {
+  id            String    @id @default(cuid())
+  milestoneId   String
+  milestone     Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  title         String
+  description   String?
+  frequency     String?   // "daily" | "weekly" | "once"
+  estimatedMins Int?
+  orderIndex    Int
+  status        String    @default("pending") // pending | completed
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+}
