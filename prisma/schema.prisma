@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  color     String   // hex color for UI
+  icon      String   // emoji icon
+  createdAt DateTime @default(now())
+
+  timeEntries TimeEntry[]
+  goals       Goal[]
+}
+
+model TimeEntry {
+  id         String   @id @default(cuid())
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  startedAt  DateTime @default(now())
+  stoppedAt  DateTime?
+  duration   Int?     // duration in seconds, computed on stop
+  note       String?
+  createdAt  DateTime @default(now())
+}
+
+model Goal {
+  id           String   @id @default(cuid())
+  categoryId   String
+  category     Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  targetHours  Float    // target hours per period
+  period       String   // "daily" | "weekly" | "monthly"
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
