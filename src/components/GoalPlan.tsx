@@ -5,6 +5,10 @@ import { useState, useEffect, useCallback } from "react";
 function ObjectiveChecklist({ objectives, taskDone }: { objectives: string[]; taskDone: boolean }) {
   const [checked, setChecked] = useState<boolean[]>(() => objectives.map(() => false));
 
+  useEffect(() => {
+    setChecked(objectives.map(() => false));
+  }, [objectives.length]);
+
   function toggle(idx: number) {
     if (taskDone) return;
     setChecked((prev) => prev.map((v, i) => (i === idx ? !v : v)));

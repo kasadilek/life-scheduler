@@ -13,8 +13,7 @@ export async function POST(
     where: { id },
     include: {
       milestones: {
-        include: { tasks: { orderBy: { orderIndex: "asc" } } },
-        orderBy: { orderIndex: "asc" },
+        include: { tasks: { select: { id: true, scheduledDate: true } } },
       },
     },
   });
@@ -38,7 +37,6 @@ export async function POST(
     return Response.json({ error: "No scheduled tasks found" }, { status: 400 });
   }
 
-  // Calculate offset in milliseconds
   const earliestMidnight = new Date(earliestDate);
   earliestMidnight.setHours(0, 0, 0, 0);
   const offsetMs = newStartDate.getTime() - earliestMidnight.getTime();
@@ -47,36 +45,40 @@ export async function POST(
     return Response.json({ success: true, shifted: 0 });
   }
 
-  // Shift all task dates
+  // Batch all updates into a single Promise.all
+  const updates: Promise<unknown>[] = [];
+
   for (const m of goal.milestones) {
     for (const t of m.tasks) {
       if (t.scheduledDate) {
-        const newDate = new Date(new Date(t.scheduledDate).getTime() + offsetMs);
-        await prisma.task.update({
-          where: { id: t.id },
-          data: { scheduledDate: newDate },
-        });
+        updates.push(
+          prisma.task.update({
+            where: { id: t.id },
+            data: { scheduledDate: new Date(new Date(t.scheduledDate).getTime() + offsetMs) },
+          })
+        );
       }
     }
-
-    // Shift milestone target date
     if (m.targetDate) {
-      const newTarget = new Date(new Date(m.targetDate).getTime() + offsetMs);
-      await prisma.milestone.update({
-        where: { id: m.id },
-        data: { targetDate: newTarget },
-      });
+      updates.push(
+        prisma.milestone.update({
+          where: { id: m.id },
+          data: { targetDate: new Date(new Date(m.targetDate).getTime() + offsetMs) },
+        })
+      );
     }
   }
 
-  // Shift goal target date
   if (goal.targetDate) {
-    const newGoalTarget = new Date(new Date(goal.targetDate).getTime() + offsetMs);
-    await prisma.lifeGoal.update({
-      where: { id },
-      data: { targetDate: newGoalTarget },
-    });
+    updates.push(
+      prisma.lifeGoal.update({
+        where: { id },
+        data: { targetDate: new Date(new Date(goal.targetDate).getTime() + offsetMs) },
+      })
+    );
   }
+
+  await Promise.all(updates);
 
   return Response.json({ success: true, offsetDays: Math.round(offsetMs / (24 * 60 * 60 * 1000)) });
 }

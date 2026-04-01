@@ -17,7 +17,6 @@ type TaskItem = {
 
 export default function DailyView() {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
-  const [date] = useState(() => new Date());
 
   const fetchTodaysTasks = useCallback(async () => {
     const res = await fetch("/api/today");
@@ -42,7 +41,7 @@ export default function DailyView() {
   const completedCount = tasks.filter((t) => t.status === "completed").length;
   const totalCount = tasks.length;
 
-  const dayName = date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  const dayName = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
 
   return (
     <div className="space-y-10 pt-4">

@@ -20,10 +20,11 @@ export default function PlanTab() {
     const data: GoalSummary[] = await res.json();
     const withPlan = data.filter((g) => g.status === "planned" || g.status === "active");
     setGoals(withPlan);
-    if (withPlan.length > 0 && !selectedGoalId) {
-      setSelectedGoalId(withPlan[0].id);
-    }
-  }, [selectedGoalId]);
+    setSelectedGoalId((prev) => {
+      if (prev) return prev;
+      return withPlan.length > 0 ? withPlan[0].id : null;
+    });
+  }, []);
 
   useEffect(() => {
     fetchGoals();

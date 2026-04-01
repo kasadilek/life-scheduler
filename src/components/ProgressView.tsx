@@ -51,10 +51,11 @@ export default function ProgressView() {
       }
     );
     setGoals(processed);
-    if (processed.length > 0 && !selectedGoal) {
-      setSelectedGoal(processed[0].id);
-    }
-  }, [selectedGoal]);
+    setSelectedGoal((prev) => {
+      if (prev) return prev;
+      return processed.length > 0 ? processed[0].id : null;
+    });
+  }, []);
 
   useEffect(() => {
     fetchProgress();

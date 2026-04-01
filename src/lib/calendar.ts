@@ -29,31 +29,13 @@ async function runAppleScript(script: string): Promise<string> {
   return stdout.trim();
 }
 
-export async function ensureCalendarExists(): Promise<void> {
+async function ensureCalendarExists(): Promise<void> {
   const script = `
 tell application "Calendar"
   set calNames to name of every calendar
   if calNames does not contain "${CALENDAR_NAME}" then
-    set newCal to make new calendar with properties {name:"${CALENDAR_NAME}"}
+    make new calendar with properties {name:"${CALENDAR_NAME}"}
   end if
-end tell`;
-  await runAppleScript(script);
-}
-
-export async function createCalendarEvent(params: {
-  title: string;
-  description: string;
-  startDate: Date;
-  durationMins: number;
-}): Promise<void> {
-  const { title, description, startDate, durationMins } = params;
-  const endDate = new Date(startDate.getTime() + durationMins * 60 * 1000);
-
-  const script = `
-tell application "Calendar"
-  tell calendar "${CALENDAR_NAME}"
-    make new event with properties {summary:"${escapeAppleScript(title)}", description:"${escapeAppleScript(description)}", start date:date "${formatAppleScriptDate(startDate)}", end date:date "${formatAppleScriptDate(endDate)}"}
-  end tell
 end tell`;
   await runAppleScript(script);
 }
@@ -79,7 +61,8 @@ type GoalData = {
 export async function addPlanToCalendar(goal: GoalData): Promise<number> {
   await ensureCalendarExists();
 
-  let eventCount = 0;
+  // Build all events as AppleScript commands in a single batch
+  const eventCommands: string[] = [];
 
   for (const milestone of goal.milestones) {
     for (const task of milestone.tasks) {
@@ -87,6 +70,7 @@ export async function addPlanToCalendar(goal: GoalData): Promise<number> {
 
       const startDate = new Date(task.scheduledDate);
       startDate.setHours(task.startHour ?? 8, 0, 0, 0);
+      const endDate = new Date(startDate.getTime() + (task.estimatedMins || 30) * 60 * 1000);
 
       const description = [
         task.description || "",
@@ -94,17 +78,28 @@ export async function addPlanToCalendar(goal: GoalData): Promise<number> {
         `Milestone: ${milestone.title}`,
       ]
         .filter(Boolean)
-        .join("\n");
+        .join("\\n");
 
-      await createCalendarEvent({
-        title: task.title,
-        description,
-        startDate,
-        durationMins: task.estimatedMins || 30,
-      });
-      eventCount++;
+      eventCommands.push(
+        `make new event with properties {summary:"${escapeAppleScript(task.title)}", description:"${escapeAppleScript(description)}", start date:date "${formatAppleScriptDate(startDate)}", end date:date "${formatAppleScriptDate(endDate)}"}`
+      );
     }
   }
 
-  return eventCount;
+  if (eventCommands.length === 0) return 0;
+
+  // Batch into chunks of 20 to avoid AppleScript size limits
+  const BATCH_SIZE = 20;
+  for (let i = 0; i < eventCommands.length; i += BATCH_SIZE) {
+    const batch = eventCommands.slice(i, i + BATCH_SIZE);
+    const script = `
+tell application "Calendar"
+  tell calendar "${CALENDAR_NAME}"
+    ${batch.join("\n    ")}
+  end tell
+end tell`;
+    await runAppleScript(script);
+  }
+
+  return eventCommands.length;
 }
