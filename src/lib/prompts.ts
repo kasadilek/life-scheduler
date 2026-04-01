@@ -27,18 +27,28 @@ Respond with ONLY valid JSON (no markdown fences, no extra text) in this exact f
 {
   "summary": "One paragraph summary of the overall plan and approach",
   "totalWeeks": 12,
-  "weeklyHours": 5,
   "milestones": [
     {
-      "title": "Milestone title",
+      "title": "Milestone title (e.g. Week 1-2: Build Foundation)",
       "description": "Brief description of what this milestone achieves",
-      "targetWeek": 1,
+      "startWeek": 1,
+      "endWeek": 2,
       "tasks": [
         {
-          "title": "Specific actionable task",
+          "title": "Specific actionable task for this day",
           "description": "Details on what to do",
-          "frequency": "daily",
-          "estimatedMinutes": 30
+          "dayNumber": 1,
+          "startHour": 8,
+          "estimatedMinutes": 30,
+          "learningObjectives": [
+            "Understand concept X and be able to explain it",
+            "Be able to do Y independently",
+            "Complete exercise Z successfully"
+          ],
+          "resources": [
+            {"title": "Resource name", "url": "https://example.com/...", "type": "docs", "durationMins": 15},
+            {"title": "YouTube Tutorial Title", "url": "https://youtube.com/watch?v=...", "type": "video", "durationMins": 20}
+          ]
         }
       ]
     }
@@ -46,11 +56,32 @@ Respond with ONLY valid JSON (no markdown fences, no extra text) in this exact f
 }
 
 Rules:
-- Create 3-6 milestones, ordered by targetWeek
-- Each milestone has 2-5 specific, actionable tasks
-- frequency must be one of: "daily", "weekly", "once"
+- Create 3-6 milestones, each covering a range of weeks
+- For EACH milestone, create day-by-day tasks — one task per day that the user should work on this goal
+- dayNumber is relative to the start of the plan (Day 1, Day 2, Day 3, etc.) and must be unique across all milestones
+- Include rest days where appropriate (skip those day numbers)
+- startHour is the suggested hour (0-23) — respect the user's schedule from the interview
 - estimatedMinutes should be realistic (15-120 range)
-- totalWeeks and weeklyHours should match what the user said in the interview
-- Make tasks progressively more challenging
-- Be specific — "Run 2km at easy pace" not "Go running"`;
+- totalWeeks should match what the user said in the interview
+- Make tasks progressively more challenging across days
+- Be VERY specific: "Run 2km at easy pace" not "Go running", "Do 3 sets of 10 push-ups" not "Upper body workout"
+- For the first week, create tasks for every applicable day to give a detailed start
+- For later weeks, create 3-4 representative tasks per week (to keep the plan manageable)
+- Maximum 40 tasks total across all milestones — quality over quantity
+
+LEARNING OBJECTIVES (learningObjectives):
+- Each task MUST have 2-4 specific, measurable learning objectives
+- These are concrete outcomes the user should achieve by end of the session
+- Use action verbs: "Understand...", "Be able to...", "Create...", "Explain...", "Implement..."
+- Must be achievable within the task's estimatedMinutes
+
+RESOURCES:
+- Each task MUST include 2-5 free learning resources
+- Resources should be real URLs to: official documentation, YouTube tutorials, free courses (freeCodeCamp, Coursera, etc.), blog posts, GitHub repos
+- type must be one of: "video", "docs", "article", "course"
+- CRITICAL: Each resource must have durationMins — estimated time to consume that resource
+- The TOTAL durationMins of all resources for a task must NOT exceed the task's estimatedMinutes
+- Example: if estimatedMinutes is 60, resources could be: 20min video + 15min docs + 25min practice article = 60min
+- Prefer well-known sources: official docs, popular YouTube channels, freeCodeCamp, MDN, etc.
+- Resources should be directly relevant to the specific task, not generic`;
 }

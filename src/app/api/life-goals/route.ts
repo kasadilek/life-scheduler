@@ -4,7 +4,20 @@ export async function GET() {
   const goals = await prisma.lifeGoal.findMany({
     include: {
       milestones: {
-        select: { tasks: { select: { status: true } } },
+        include: {
+          tasks: {
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              status: true,
+              scheduledDate: true,
+              estimatedMins: true,
+            },
+            orderBy: { orderIndex: "asc" },
+          },
+        },
+        orderBy: { orderIndex: "asc" },
       },
     },
     orderBy: { createdAt: "desc" },

@@ -84,7 +84,11 @@ model Task {
   title         String
   description   String?
   frequency     String?   // "daily" | "weekly" | "once"
+  scheduledDate DateTime? // specific date this task is scheduled for
   estimatedMins Int?
+  startHour     Int?      // hour of day (0-23) for calendar event
+  learningObjectives String? // JSON: ["objective 1", "objective 2", ...]
+  resources          String? // JSON: [{"title":"...","url":"...","type":"...","durationMins":15}]
   orderIndex    Int
   status        String    @default("pending") // pending | completed
   completedAt   DateTime?

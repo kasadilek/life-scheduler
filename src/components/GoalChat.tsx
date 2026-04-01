@@ -27,6 +27,7 @@ export default function GoalChat({
   const [readyToPlan, setReadyToPlan] = useState(false);
   const [generating, setGenerating] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const initCalled = useRef(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -48,30 +49,29 @@ export default function GoalChat({
     return existing;
   }, [goalId]);
 
-  // Load existing messages and start conversation
-  const initChat = useCallback(async () => {
-    const existing = await loadMessages();
-
-    // If no messages yet, send an initial greeting to kick off the interview
-    if (existing.length === 0) {
-      setLoading(true);
-      const chatRes = await fetch(`/api/life-goals/${goalId}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: `My goal is: ${goalTitle}. Let's start planning!`,
-        }),
-      });
-      const data = await chatRes.json();
-      if (data.readyToPlan) setReadyToPlan(true);
-      await loadMessages();
-      setLoading(false);
-    }
-  }, [goalId, goalTitle, loadMessages]);
-
   useEffect(() => {
-    initChat();
-  }, [initChat]);
+    if (initCalled.current) return;
+    initCalled.current = true;
+
+    (async () => {
+      const existing = await loadMessages();
+
+      if (existing.length === 0) {
+        setLoading(true);
+        const chatRes = await fetch(`/api/life-goals/${goalId}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: `My goal is: ${goalTitle}. Let's start planning!`,
+          }),
+        });
+        const data = await chatRes.json();
+        if (data.readyToPlan) setReadyToPlan(true);
+        await loadMessages();
+        setLoading(false);
+      }
+    })();
+  }, [goalId, goalTitle, loadMessages]);
 
   useEffect(scrollToBottom, [messages]);
 
@@ -100,9 +100,21 @@ export default function GoalChat({
 
   async function generatePlan() {
     setGenerating(true);
-    await fetch(`/api/life-goals/${goalId}/generate-plan`, {
-      method: "POST",
-    });
+    try {
+      const res = await fetch(`/api/life-goals/${goalId}/generate-plan`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(`Plan generation failed: ${data.error || "Unknown error"}. Please try again.`);
+        setGenerating(false);
+        return;
+      }
+    } catch {
+      alert("Plan generation timed out. Please try again.");
+      setGenerating(false);
+      return;
+    }
     setGenerating(false);
     onPlanGenerated();
   }
@@ -112,29 +124,41 @@ export default function GoalChat({
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-160px)]">
-      <div className="flex items-center gap-2 mb-4">
+    <div className="flex flex-col h-[calc(100vh-180px)]">
+      {/* Header */}
+      <div className="mb-6">
         <button
           onClick={onBack}
-          className="text-sm text-gray-400 hover:text-gray-600 cursor-pointer"
+          className="group flex items-center gap-2 text-[#434654] hover:text-[#003fb1] transition-colors cursor-pointer mb-4"
         >
-          &larr;
+          <span className="material-symbols-outlined text-lg">arrow_back</span>
+          <span className="uppercase tracking-widest text-xs font-bold">Back</span>
         </button>
-        <h2 className="font-semibold truncate">{goalTitle}</h2>
+        <span className="uppercase text-[10px] tracking-widest text-[#5d00cc] font-bold block mb-2">
+          AI Interview
+        </span>
+        <h2 className="text-2xl font-extrabold tracking-tight">{goalTitle}</h2>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto space-y-3 pb-4">
+      <div className="flex-1 overflow-y-auto space-y-4 pb-4 hide-scrollbar">
         {messages.map((msg) => (
           <div
             key={msg.id}
             className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
           >
+            {msg.role === "assistant" && (
+              <div className="w-8 h-8 rounded-full bg-[#5d00cc] flex items-center justify-center mr-3 flex-shrink-0 mt-1">
+                <span className="material-symbols-outlined text-white text-sm">
+                  auto_awesome
+                </span>
+              </div>
+            )}
             <div
-              className={`max-w-[85%] p-3 rounded-2xl text-sm whitespace-pre-wrap ${
+              className={`max-w-[80%] p-4 rounded-2xl text-sm whitespace-pre-wrap leading-relaxed ${
                 msg.role === "user"
-                  ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-                  : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                  ? "ai-gradient text-white rounded-br-md"
+                  : "bg-white text-[#191b23] rounded-bl-md editorial-shadow"
               }`}
             >
               {displayContent(msg.content)}
@@ -144,7 +168,12 @@ export default function GoalChat({
 
         {loading && (
           <div className="flex justify-start">
-            <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-2xl text-sm text-gray-400">
+            <div className="w-8 h-8 rounded-full bg-[#5d00cc] flex items-center justify-center mr-3 flex-shrink-0">
+              <span className="material-symbols-outlined text-white text-sm animate-spin">
+                progress_activity
+              </span>
+            </div>
+            <div className="bg-white p-4 rounded-2xl rounded-bl-md text-sm text-[#434654] editorial-shadow">
               Thinking...
             </div>
           </div>
@@ -153,40 +182,46 @@ export default function GoalChat({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Generate plan button */}
+      {/* Generate Plan CTA */}
       {readyToPlan && !generating && (
         <button
           onClick={generatePlan}
-          className="w-full py-3 mb-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors cursor-pointer"
+          className="w-full py-5 mb-3 rounded-full ai-gradient text-white font-bold text-lg shadow-xl hover:-translate-y-1 transition-all duration-300 flex items-center justify-center gap-3 cursor-pointer"
         >
-          Generate My Plan
+          Confirm & Generate Plan
+          <span className="material-symbols-outlined">rocket_launch</span>
         </button>
       )}
 
       {generating && (
-        <div className="w-full py-3 mb-3 bg-blue-600/80 text-white rounded-xl font-medium text-center">
-          Generating your plan...
+        <div className="w-full py-5 mb-3 rounded-full ai-gradient-purple text-white font-bold text-center">
+          <span className="flex items-center justify-center gap-3">
+            <span className="material-symbols-outlined animate-spin">progress_activity</span>
+            Generating your strategy...
+          </span>
         </div>
       )}
 
       {/* Input */}
       {!readyToPlan && (
-        <form onSubmit={sendMessage} className="flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your answer..."
-            className="flex-1 p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            disabled={loading}
-            autoFocus
-          />
+        <form onSubmit={sendMessage} className="flex gap-3 items-end">
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Share your thoughts..."
+              className="w-full bg-white p-4 pr-12 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-[#003fb1]/20 editorial-shadow border-0"
+              disabled={loading}
+              autoFocus
+            />
+          </div>
           <button
             type="submit"
             disabled={!input.trim() || loading}
-            className="px-4 py-3 bg-gray-900 text-white dark:bg-white dark:text-gray-900 rounded-xl font-medium hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
+            className="w-12 h-12 rounded-full ai-gradient text-white flex items-center justify-center hover:-translate-y-1 transition-all duration-300 cursor-pointer disabled:opacity-40 flex-shrink-0"
           >
-            Send
+            <span className="material-symbols-outlined">send</span>
           </button>
         </form>
       )}

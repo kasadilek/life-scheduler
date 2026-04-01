@@ -3,24 +3,34 @@ import { anthropic } from "@/lib/anthropic";
 import { getPlanGenerationPrompt } from "@/lib/prompts";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 
+type PlanResource = {
+  title: string;
+  url: string;
+  type: string;
+  durationMins?: number;
+};
+
 type PlanTask = {
   title: string;
   description: string;
-  frequency: string;
+  dayNumber: number;
+  startHour: number;
   estimatedMinutes: number;
+  learningObjectives?: string[];
+  resources?: PlanResource[];
 };
 
 type PlanMilestone = {
   title: string;
   description: string;
-  targetWeek: number;
+  startWeek: number;
+  endWeek: number;
   tasks: PlanTask[];
 };
 
 type PlanResponse = {
   summary: string;
   totalWeeks: number;
-  weeklyHours: number;
   milestones: PlanMilestone[];
 };
 
@@ -38,13 +48,11 @@ export async function POST(
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Build conversation for context
   const messages: MessageParam[] = goal.chatMessages.map((m) => ({
     role: m.role as "user" | "assistant",
     content: m.content,
   }));
 
-  // Add a final user message requesting the plan
   messages.push({
     role: "user",
     content: "Please generate my structured plan now.",
@@ -52,7 +60,7 @@ export async function POST(
 
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-20250514",
-    max_tokens: 4096,
+    max_tokens: 8192,
     system: getPlanGenerationPrompt(goal.title),
     messages,
   });
@@ -60,7 +68,6 @@ export async function POST(
   const rawText =
     response.content[0].type === "text" ? response.content[0].text : "";
 
-  // Strip markdown fences if present
   const jsonText = rawText
     .replace(/^```(?:json)?\s*/m, "")
     .replace(/\s*```\s*$/m, "")
@@ -76,14 +83,13 @@ export async function POST(
     );
   }
 
-  // Calculate target dates from weeks
-  const now = new Date();
+  const planStartDate = new Date();
+  planStartDate.setHours(0, 0, 0, 0);
 
-  // Create milestones and tasks in parallel
   await Promise.all(
     plan.milestones.map((m, i) => {
       const targetDate = new Date(
-        now.getTime() + m.targetWeek * 7 * 24 * 60 * 60 * 1000
+        planStartDate.getTime() + m.endWeek * 7 * 24 * 60 * 60 * 1000
       );
       return prisma.milestone.create({
         data: {
@@ -93,22 +99,30 @@ export async function POST(
           orderIndex: i,
           targetDate,
           tasks: {
-            create: m.tasks.map((t, j) => ({
-              title: t.title,
-              description: t.description,
-              frequency: t.frequency,
-              estimatedMins: t.estimatedMinutes,
-              orderIndex: j,
-            })),
+            create: m.tasks.map((t, j) => {
+              const scheduledDate = new Date(
+                planStartDate.getTime() + (t.dayNumber - 1) * 24 * 60 * 60 * 1000
+              );
+              scheduledDate.setHours(t.startHour || 8, 0, 0, 0);
+              return {
+                title: t.title,
+                description: t.description,
+                scheduledDate,
+                startHour: t.startHour || 8,
+                estimatedMins: t.estimatedMinutes,
+                learningObjectives: t.learningObjectives ? JSON.stringify(t.learningObjectives) : null,
+                resources: t.resources ? JSON.stringify(t.resources) : null,
+                orderIndex: j,
+              };
+            }),
           },
         },
       });
     })
   );
 
-  // Update goal status and summary
   const goalTargetDate = new Date(
-    now.getTime() + plan.totalWeeks * 7 * 24 * 60 * 60 * 1000
+    planStartDate.getTime() + plan.totalWeeks * 7 * 24 * 60 * 60 * 1000
   );
   await prisma.lifeGoal.update({
     where: { id },
