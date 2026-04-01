@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Goals from "@/components/Goals";
+import PlanTab from "@/components/PlanTab";
 import DailyView from "@/components/DailyView";
 import ProgressView from "@/components/ProgressView";
 
@@ -46,7 +47,7 @@ export default function Home() {
       {/* Content */}
       <main className="max-w-4xl mx-auto px-6">
         {tab === "goals" && <Goals />}
-        {tab === "plan" && <Goals initialView="plan" />}
+        {tab === "plan" && <PlanTab />}
         {tab === "daily" && <DailyView />}
         {tab === "progress" && <ProgressView />}
       </main>

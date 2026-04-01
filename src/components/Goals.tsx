@@ -8,9 +8,7 @@ import GoalPlan from "./GoalPlan";
 
 type View = "list" | "create" | "chat" | "plan";
 
-export default function Goals({ initialView }: { initialView?: string }) {
-  // When accessed via Plan tab, show list with plan focus
-  void initialView;
+export default function Goals() {
   const [view, setView] = useState<View>("list");
   const [activeGoalId, setActiveGoalId] = useState<string | null>(null);
   const [activeGoalTitle, setActiveGoalTitle] = useState("");

@@ -20,31 +20,9 @@ export default function DailyView() {
   const [date] = useState(() => new Date());
 
   const fetchTodaysTasks = useCallback(async () => {
-    const res = await fetch("/api/life-goals");
-    const goals = await res.json();
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    const allTasks: TaskItem[] = [];
-    for (const goal of goals) {
-      for (const milestone of goal.milestones || []) {
-        for (const task of milestone.tasks || []) {
-          if (task.scheduledDate) {
-            const taskDate = new Date(task.scheduledDate);
-            if (taskDate >= today && taskDate < tomorrow) {
-              allTasks.push({
-                ...task,
-                milestone: { title: milestone.title, lifeGoal: { id: goal.id, title: goal.title } },
-              });
-            }
-          }
-        }
-      }
-    }
-    setTasks(allTasks);
+    const res = await fetch("/api/today");
+    const data = await res.json();
+    setTasks(data);
   }, []);
 
   useEffect(() => {
