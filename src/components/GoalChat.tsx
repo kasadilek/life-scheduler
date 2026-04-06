@@ -11,6 +11,7 @@ type Message = {
 type Props = {
   goalId: string;
   goalTitle: string;
+  mode: "interview" | "adapt";
   onPlanGenerated: () => void;
   onBack: () => void;
 };
@@ -18,16 +19,21 @@ type Props = {
 export default function GoalChat({
   goalId,
   goalTitle,
+  mode,
   onPlanGenerated,
   onBack,
 }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [readyToPlan, setReadyToPlan] = useState(false);
+  const [ready, setReady] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const initCalled = useRef(false);
+
+  const isAdapt = mode === "adapt";
+  const readyToken = isAdapt ? "[READY_TO_ADAPT]" : "[READY_TO_PLAN]";
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -42,8 +48,8 @@ export default function GoalChat({
     const lastAssistant = [...existing]
       .reverse()
       .find((m) => m.role === "assistant");
-    if (lastAssistant?.content.includes("[READY_TO_PLAN]")) {
-      setReadyToPlan(true);
+    if (lastAssistant?.content.includes(readyToken)) {
+      setReady(true);
     }
 
     return existing;
@@ -56,7 +62,24 @@ export default function GoalChat({
     (async () => {
       const existing = await loadMessages();
 
-      if (existing.length === 0) {
+      const hasAdaptMessages = existing.some(
+        (m) => m.role === "user" && m.content.includes("Ask me what I'd like to change")
+      );
+      if (isAdapt && !hasAdaptMessages) {
+        setLoading(true);
+        const chatRes = await fetch(`/api/life-goals/${goalId}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: `I want to adapt my existing plan for: ${goalTitle}. Ask me what I'd like to change.`,
+            phase: "adapt",
+          }),
+        });
+        const data = await chatRes.json();
+        if (data.readyToAdapt) setReady(true);
+        await loadMessages();
+        setLoading(false);
+      } else if (!isAdapt && existing.length === 0) {
         setLoading(true);
         const chatRes = await fetch(`/api/life-goals/${goalId}/chat`, {
           method: "POST",
@@ -66,12 +89,12 @@ export default function GoalChat({
           }),
         });
         const data = await chatRes.json();
-        if (data.readyToPlan) setReadyToPlan(true);
+        if (data.readyToPlan) setReady(true);
         await loadMessages();
         setLoading(false);
       }
     })();
-  }, [goalId, goalTitle, loadMessages]);
+  }, [goalId, goalTitle, loadMessages, isAdapt]);
 
   useEffect(scrollToBottom, [messages]);
 
@@ -90,20 +113,24 @@ export default function GoalChat({
     const res = await fetch(`/api/life-goals/${goalId}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: userMsg }),
+      body: JSON.stringify({
+        message: userMsg,
+        phase: isAdapt ? "adapt" : "interview",
+      }),
     });
     const data = await res.json();
-    if (data.readyToPlan) setReadyToPlan(true);
+    if (data.readyToPlan || data.readyToAdapt) setReady(true);
     await loadMessages();
     setLoading(false);
   }
 
   async function generatePlan() {
     setGenerating(true);
+    const endpoint = isAdapt
+      ? `/api/life-goals/${goalId}/adapt-plan`
+      : `/api/life-goals/${goalId}/generate-plan`;
     try {
-      const res = await fetch(`/api/life-goals/${goalId}/generate-plan`, {
-        method: "POST",
-      });
+      const res = await fetch(endpoint, { method: "POST" });
       if (!res.ok) {
         const data = await res.json();
         alert(`Plan generation failed: ${data.error || "Unknown error"}. Please try again.`);
@@ -119,23 +146,49 @@ export default function GoalChat({
     onPlanGenerated();
   }
 
+  async function cancelAdaptation() {
+    setCancelling(true);
+    const res = await fetch(`/api/life-goals/${goalId}`);
+    const goal = await res.json();
+    await fetch(`/api/life-goals/${goalId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        status: goal.previousStatus || "planned",
+        previousStatus: null,
+      }),
+    });
+    setCancelling(false);
+    onBack();
+  }
+
   function displayContent(content: string) {
-    return content.replace(/\[READY_TO_PLAN\]\s*/g, "").trim();
+    return content
+      .replace(/\[READY_TO_PLAN\]\s*/g, "")
+      .replace(/\[READY_TO_ADAPT\]\s*/g, "")
+      .trim();
   }
 
   return (
     <div className="flex flex-col h-[calc(100vh-180px)]">
       {/* Header */}
       <div className="mb-6">
-        <button
-          onClick={onBack}
-          className="group flex items-center gap-2 text-[#434654] hover:text-[#003fb1] transition-colors cursor-pointer mb-4"
-        >
-          <span className="material-symbols-outlined text-lg">arrow_back</span>
-          <span className="uppercase tracking-widest text-xs font-bold">Back</span>
-        </button>
-        <span className="uppercase text-[10px] tracking-widest text-[#5d00cc] font-bold block mb-2">
-          AI Interview
+        <div className="flex items-center justify-between mb-4">
+          <button
+            onClick={isAdapt ? cancelAdaptation : onBack}
+            disabled={cancelling}
+            className="group flex items-center gap-2 text-[#434654] hover:text-[#003fb1] transition-colors cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-lg">arrow_back</span>
+            <span className="uppercase tracking-widest text-xs font-bold">
+              {isAdapt ? (cancelling ? "Cancelling..." : "Cancel Adaptation") : "Back"}
+            </span>
+          </button>
+        </div>
+        <span className={`uppercase text-[10px] tracking-widest font-bold block mb-2 ${
+          isAdapt ? "text-[#006c4a]" : "text-[#5d00cc]"
+        }`}>
+          {isAdapt ? "Adapt Your Goal" : "AI Interview"}
         </span>
         <h2 className="text-2xl font-extrabold tracking-tight">{goalTitle}</h2>
       </div>
@@ -148,9 +201,11 @@ export default function GoalChat({
             className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
           >
             {msg.role === "assistant" && (
-              <div className="w-8 h-8 rounded-full bg-[#5d00cc] flex items-center justify-center mr-3 flex-shrink-0 mt-1">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 flex-shrink-0 mt-1 ${
+                isAdapt ? "bg-[#006c4a]" : "bg-[#5d00cc]"
+              }`}>
                 <span className="material-symbols-outlined text-white text-sm">
-                  auto_awesome
+                  {isAdapt ? "tune" : "auto_awesome"}
                 </span>
               </div>
             )}
@@ -168,7 +223,9 @@ export default function GoalChat({
 
         {loading && (
           <div className="flex justify-start">
-            <div className="w-8 h-8 rounded-full bg-[#5d00cc] flex items-center justify-center mr-3 flex-shrink-0">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 flex-shrink-0 ${
+              isAdapt ? "bg-[#006c4a]" : "bg-[#5d00cc]"
+            }`}>
               <span className="material-symbols-outlined text-white text-sm animate-spin">
                 progress_activity
               </span>
@@ -182,35 +239,39 @@ export default function GoalChat({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Generate Plan CTA */}
-      {readyToPlan && !generating && (
+      {/* Generate / Regenerate Plan CTA */}
+      {ready && !generating && (
         <button
           onClick={generatePlan}
-          className="w-full py-5 mb-3 rounded-full ai-gradient text-white font-bold text-lg shadow-xl hover:-translate-y-1 transition-all duration-300 flex items-center justify-center gap-3 cursor-pointer"
+          className={`w-full py-5 mb-3 rounded-full text-white font-bold text-lg shadow-xl hover:-translate-y-1 transition-all duration-300 flex items-center justify-center gap-3 cursor-pointer ${
+            isAdapt ? "bg-[#006c4a] hover:bg-[#005a3e]" : "ai-gradient"
+          }`}
         >
-          Confirm & Generate Plan
+          {isAdapt ? "Regenerate Plan" : "Confirm & Generate Plan"}
           <span className="material-symbols-outlined">rocket_launch</span>
         </button>
       )}
 
       {generating && (
-        <div className="w-full py-5 mb-3 rounded-full ai-gradient-purple text-white font-bold text-center">
+        <div className={`w-full py-5 mb-3 rounded-full text-white font-bold text-center ${
+          isAdapt ? "bg-[#006c4a]" : "ai-gradient-purple"
+        }`}>
           <span className="flex items-center justify-center gap-3">
             <span className="material-symbols-outlined animate-spin">progress_activity</span>
-            Generating your strategy...
+            {isAdapt ? "Regenerating your strategy..." : "Generating your strategy..."}
           </span>
         </div>
       )}
 
       {/* Input */}
-      {!readyToPlan && (
+      {!generating && (
         <form onSubmit={sendMessage} className="flex gap-3 items-end">
           <div className="flex-1 relative">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Share your thoughts..."
+              placeholder={isAdapt ? "Describe what you'd like to change..." : "Share your thoughts..."}
               className="w-full bg-white p-4 pr-12 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-[#003fb1]/20 editorial-shadow border-0"
               disabled={loading}
               autoFocus

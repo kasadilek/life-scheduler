@@ -41,14 +41,15 @@ model Goal {
 }
 
 model LifeGoal {
-  id          String    @id @default(cuid())
-  title       String
-  description String?
-  status      String    @default("drafting") // drafting | planned | active | completed
-  targetDate  DateTime?
-  planSummary String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  title          String
+  description    String?
+  status         String    @default("drafting") // drafting | planned | active | adapting | completed
+  previousStatus String?   // set when entering 'adapting', used to restore on completion/cancel
+  targetDate     DateTime?
+  planSummary    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   chatMessages ChatMessage[]
   milestones   Milestone[]
@@ -60,6 +61,7 @@ model ChatMessage {
   lifeGoal   LifeGoal @relation(fields: [lifeGoalId], references: [id], onDelete: Cascade)
   role       String   // "user" | "assistant"
   content    String
+  phase      String   @default("interview") // "interview" | "adapt"
   createdAt  DateTime @default(now())
 }
 

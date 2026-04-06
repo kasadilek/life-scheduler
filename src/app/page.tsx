@@ -17,6 +17,12 @@ const navItems: { id: Tab; icon: string; iconFilled: string; label: string }[] =
 
 export default function Home() {
   const [tab, setTab] = useState<Tab>("goals");
+  const [adaptGoal, setAdaptGoal] = useState<{ id: string; title: string } | null>(null);
+
+  function handleAdaptFromPlan(goalId: string, title: string) {
+    setAdaptGoal({ id: goalId, title });
+    setTab("goals");
+  }
 
   return (
     <div className="min-h-screen bg-[#faf8ff] text-[#191b23] pb-24">
@@ -46,8 +52,13 @@ export default function Home() {
 
       {/* Content */}
       <main className="max-w-4xl mx-auto px-6">
-        {tab === "goals" && <Goals />}
-        {tab === "plan" && <PlanTab />}
+        {tab === "goals" && (
+          <Goals
+            adaptGoal={adaptGoal}
+            onAdaptConsumed={() => setAdaptGoal(null)}
+          />
+        )}
+        {tab === "plan" && <PlanTab onAdapt={handleAdaptFromPlan} />}
         {tab === "daily" && <DailyView />}
         {tab === "progress" && <ProgressView />}
       </main>

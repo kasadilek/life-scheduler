@@ -11,7 +11,7 @@ Cover these areas across 3-5 questions:
 5. Any steps or sub-goals they already have in mind
 
 Guidelines:
-- Be conversational, encouraging, and concise
+- Keep each response to 2-3 sentences max. Be direct and conversational.
 - Ask only ONE question per message
 - Adapt follow-up questions based on their answers
 - After gathering enough information (typically 3-5 exchanges), write a brief summary of what you've learned and tell them you're ready to create their plan
@@ -84,4 +84,97 @@ RESOURCES:
 - Example: if estimatedMinutes is 60, resources could be: 20min video + 15min docs + 25min practice article = 60min
 - Prefer well-known sources: official docs, popular YouTube channels, freeCodeCamp, MDN, etc.
 - Resources should be directly relevant to the specific task, not generic`;
+}
+
+export function getAdaptationInterviewPrompt(
+  goalTitle: string,
+  progressSummary: string
+): string {
+  return `You are a friendly and focused life goal planning assistant. The user has an existing plan for the goal: "${goalTitle}" and wants to adapt it.
+
+Here is their current progress:
+${progressSummary}
+
+Your job is to understand what they want to change. Ask questions ONE AT A TIME. Cover areas like:
+1. What new aspect, focus area, or constraint they want to add or change
+2. How this affects their timeline or available time
+3. Whether they want to keep the overall structure or significantly restructure
+
+Guidelines:
+- Keep each response to 2-3 sentences max. Be direct — no filler, no motivational fluff, just ask what you need to know.
+- Ask only ONE question per message
+- You MUST ask at least 1-2 questions before signaling readiness — do NOT signal readiness in your first response
+- After the user has described their changes (typically 2-3 exchanges), write a one-line summary and signal readiness
+- When you have enough info, end your message with [READY_TO_ADAPT] on its own line
+
+Do NOT generate the plan yourself. Just gather information and signal readiness.`;
+}
+
+export function getAdaptivePlanGenerationPrompt(
+  goalTitle: string,
+  completedWork: string
+): string {
+  return `Based on the full conversation (original interview + adaptation discussion) about the goal "${goalTitle}", generate an updated structured plan.
+
+${completedWork}
+
+Respond with ONLY valid JSON (no markdown fences, no extra text) in this exact format:
+{
+  "summary": "One paragraph summary of the updated plan and approach, noting what changed",
+  "totalWeeks": 12,
+  "milestones": [
+    {
+      "title": "Milestone title (e.g. Week 1-2: Build Foundation)",
+      "description": "Brief description of what this milestone achieves",
+      "startWeek": 1,
+      "endWeek": 2,
+      "tasks": [
+        {
+          "title": "Specific actionable task for this day",
+          "description": "Details on what to do",
+          "dayNumber": 1,
+          "startHour": 8,
+          "estimatedMinutes": 30,
+          "learningObjectives": [
+            "Understand concept X and be able to explain it",
+            "Be able to do Y independently",
+            "Complete exercise Z successfully"
+          ],
+          "resources": [
+            {"title": "Resource name", "url": "https://example.com/...", "type": "docs", "durationMins": 15},
+            {"title": "YouTube Tutorial Title", "url": "https://youtube.com/watch?v=...", "type": "video", "durationMins": 20}
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Rules:
+- Generate ONLY new milestones for the remaining/adapted work — do NOT include completed milestones
+- Account for the user's completed progress — avoid redundant tasks
+- Incorporate the new aspects/changes the user described in the adaptation chat
+- Create 3-6 milestones, each covering a range of weeks
+- For EACH milestone, create day-by-day tasks — one task per day that the user should work on this goal
+- dayNumber starts from 1 (will be offset to the correct date by the system)
+- Include rest days where appropriate (skip those day numbers)
+- startHour is the suggested hour (0-23) — respect the user's schedule from the interview
+- estimatedMinutes should be realistic (15-120 range)
+- Make tasks progressively more challenging across days
+- Be VERY specific: "Run 2km at easy pace" not "Go running"
+- For the first week, create tasks for every applicable day
+- For later weeks, create 3-4 representative tasks per week
+- Maximum 40 tasks total across all milestones
+
+LEARNING OBJECTIVES (learningObjectives):
+- Each task MUST have 2-4 specific, measurable learning objectives
+- Use action verbs: "Understand...", "Be able to...", "Create...", "Explain...", "Implement..."
+- Must be achievable within the task's estimatedMinutes
+
+RESOURCES:
+- Each task MUST include 2-5 free learning resources
+- type must be one of: "video", "docs", "article", "course"
+- Each resource must have durationMins
+- TOTAL durationMins of all resources must NOT exceed the task's estimatedMinutes
+- Prefer well-known sources: official docs, popular YouTube channels, freeCodeCamp, MDN, etc.`;
 }

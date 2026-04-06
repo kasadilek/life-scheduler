@@ -11,14 +11,20 @@ type GoalSummary = {
   milestones: { tasks: { status: string }[] }[];
 };
 
-export default function PlanTab() {
+type Props = {
+  onAdapt: (goalId: string, title: string) => void;
+};
+
+export default function PlanTab({ onAdapt }: Props) {
   const [goals, setGoals] = useState<GoalSummary[]>([]);
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
 
   const fetchGoals = useCallback(async () => {
     const res = await fetch("/api/life-goals");
     const data: GoalSummary[] = await res.json();
-    const withPlan = data.filter((g) => g.status === "planned" || g.status === "active");
+    const withPlan = data.filter(
+      (g) => g.status === "planned" || g.status === "active" || g.status === "adapting"
+    );
     setGoals(withPlan);
     setSelectedGoalId((prev) => {
       if (prev) return prev;
@@ -35,6 +41,7 @@ export default function PlanTab() {
       <GoalPlan
         goalId={selectedGoalId}
         onBack={() => setSelectedGoalId(null)}
+        onAdapt={onAdapt}
       />
     );
   }
@@ -84,8 +91,14 @@ export default function PlanTab() {
                 </div>
                 <div className="flex justify-between mt-2 text-[10px] font-bold text-[#434654] uppercase tracking-wider">
                   <span>{done}/{total} tasks</span>
-                  <span className={goal.status === "active" ? "text-[#006c4a]" : "text-[#003fb1]"}>
-                    {goal.status === "active" ? "Active" : "Ready to start"}
+                  <span className={
+                    goal.status === "active" ? "text-[#006c4a]" :
+                    goal.status === "adapting" ? "text-[#856404]" :
+                    "text-[#003fb1]"
+                  }>
+                    {goal.status === "active" ? "Active" :
+                     goal.status === "adapting" ? "Adapting..." :
+                     "Ready to start"}
                   </span>
                 </div>
               </div>

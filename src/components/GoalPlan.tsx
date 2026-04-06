@@ -78,14 +78,16 @@ type GoalType = {
 type Props = {
   goalId: string;
   onBack: () => void;
+  onAdapt: (goalId: string, title: string) => void;
 };
 
-export default function GoalPlan({ goalId, onBack }: Props) {
+export default function GoalPlan({ goalId, onBack, onAdapt }: Props) {
   const [goal, setGoal] = useState<GoalType | null>(null);
   const [expandedMilestone, setExpandedMilestone] = useState<string | null>(null);
   const [accepting, setAccepting] = useState(false);
   const [acceptResult, setAcceptResult] = useState<{ success: boolean; message: string } | null>(null);
   const [shifting, setShifting] = useState(false);
+  const [startingAdapt, setStartingAdapt] = useState(false);
 
   const fetchGoal = useCallback(async () => {
     const res = await fetch(`/api/life-goals/${goalId}`);
@@ -142,6 +144,18 @@ export default function GoalPlan({ goalId, onBack }: Props) {
     });
     await fetchGoal();
     setShifting(false);
+  }
+
+  async function startAdaptation() {
+    if (!goal) return;
+    setStartingAdapt(true);
+    await fetch(`/api/life-goals/${goalId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "adapting", previousStatus: goal.status }),
+    });
+    setStartingAdapt(false);
+    onAdapt(goalId, goal.title);
   }
 
   const earliestTaskDate = goal?.milestones
@@ -207,6 +221,28 @@ export default function GoalPlan({ goalId, onBack }: Props) {
           </div>
         )}
       </section>
+
+      {/* Adapting banner */}
+      {goal.status === "adapting" && (
+        <div className="flex items-center gap-3 bg-[#fff3cd] rounded-xl p-4">
+          <span className="material-symbols-outlined text-[#856404]">info</span>
+          <span className="text-sm font-medium text-[#856404]">
+            This goal is being adapted. Return to chat to complete changes.
+          </span>
+        </div>
+      )}
+
+      {/* Adapt Goal button */}
+      {(goal.status === "planned" || goal.status === "active") && (
+        <button
+          onClick={startAdaptation}
+          disabled={startingAdapt}
+          className="flex items-center gap-2 px-5 py-3 rounded-full border-2 border-[#5d00cc] text-[#5d00cc] font-bold text-sm hover:bg-[#f3ecff] transition-colors cursor-pointer disabled:opacity-50"
+        >
+          <span className="material-symbols-outlined text-lg">tune</span>
+          {startingAdapt ? "Starting..." : "Adapt Goal"}
+        </button>
+      )}
 
       {/* Start date picker */}
       {goal.status === "planned" && startDateStr && (
